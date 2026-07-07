@@ -1,0 +1,8 @@
+build/
+.superpowers/
+*.exe
+*.obj
+*.o
+*.a
+Makefile
+cmake_install.cmake

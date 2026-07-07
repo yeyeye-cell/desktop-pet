@@ -1,0 +1,28 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "Qt MinGW",
+      "includePath": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/build/DesktopPet_autogen/include_Debug",
+        "D:/qtinstaal/6.11.0/mingw_64/include",
+        "D:/qtinstaal/6.11.0/mingw_64/include/QtCore",
+        "D:/qtinstaal/6.11.0/mingw_64/include/QtGui",
+        "D:/qtinstaal/6.11.0/mingw_64/include/QtWidgets"
+      ],
+      "defines": [
+        "_DEBUG",
+        "UNICODE",
+        "_UNICODE",
+        "QT_CORE_LIB",
+        "QT_GUI_LIB",
+        "QT_WIDGETS_LIB"
+      ],
+      "compilerPath": "D:/qtinstaal/Tools/mingw1310_64/bin/g++.exe",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "windows-gcc-x64"
+    }
+  ]
+}
