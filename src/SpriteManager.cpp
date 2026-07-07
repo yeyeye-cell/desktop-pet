@@ -4,6 +4,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
+#include <QImageReader>
+#include <QMovie>
 #include <QDebug>
 
 SpriteManager::SpriteManager(QObject *parent)
@@ -89,9 +91,47 @@ QVector<QPixmap> SpriteManager::loadFrameSequence(const QString &folderPath)
 
 SpriteData SpriteManager::loadFromGif(const QString &filePath)
 {
-    // GIF loading will be implemented with QMovie in Step 2 refinement
-    Q_UNUSED(filePath);
-    return SpriteData();
+    SpriteData data;
+    QFileInfo fi(filePath);
+
+    // Try QImageReader first (synchronous, works for most GIFs)
+    QImageReader reader(filePath, "gif");
+    if (!reader.canRead()) {
+        qWarning() << "Cannot read GIF:" << filePath;
+        return data;
+    }
+
+    data.name = fi.baseName();
+    data.frameRate = reader.nextImageDelay(); // ms delay of first frame, default 100
+
+    // Extract all frames
+    int frameCount = reader.imageCount();
+    if (frameCount == 0) {
+        // Some GIFs report 0; read until no more images
+        while (true) {
+            QImage img = reader.read();
+            if (img.isNull()) break;
+            data.frames[PetState::Idle].append(QPixmap::fromImage(img));
+            if (!reader.jumpToNextImage()) break;
+        }
+    } else {
+        for (int i = 0; i < frameCount; ++i) {
+            reader.jumpToImage(i);
+            QImage img = reader.read();
+            if (!img.isNull()) {
+                data.frames[PetState::Idle].append(QPixmap::fromImage(img));
+            }
+        }
+    }
+
+    if (data.frames[PetState::Idle].isEmpty()) {
+        qWarning() << "No frames extracted from GIF:" << filePath;
+        return SpriteData();
+    }
+
+    qDebug() << "Loaded" << data.frames[PetState::Idle].size()
+             << "frames from GIF:" << filePath;
+    return data;
 }
 
 bool SpriteManager::importCustom(const QString &path)

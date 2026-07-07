@@ -79,5 +79,5 @@ if(BUILD_TESTS)
         src/SpriteData.h
     )
     target_include_directories(test_behavior_engine PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(test_behavior_engine PRIVATE Qt6::Core Qt6::Test)
+    target_link_libraries(test_behavior_engine PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 endif()
