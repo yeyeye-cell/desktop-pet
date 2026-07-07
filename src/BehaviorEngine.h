@@ -15,10 +15,11 @@ public:
     void start();
     void stop();
 
-    // Inputs from PetWindow
+    // Inputs from PetWindow / PetController
     void onClicked();
     void onDragged(QPoint delta);
     void onDragReleased();
+    void setPetPosition(QPoint screenPos);
 
 signals:
     void stateChanged(PetState state);
@@ -40,14 +41,16 @@ private:
     PetState m_pendingState = PetState::Idle;
 
     bool m_isDragging = false;
-    QPoint m_lastMousePos;
+    QPoint m_petPosition;        // pet window screen position
     int m_idleSeconds = 0;
 
-    static constexpr int POLL_INTERVAL = 100;     // ms
-    static constexpr int NEAR_DISTANCE = 200;      // px
-    static constexpr int IDLE_SLEEP_SECS = 30;     // seconds until sleep
-    static constexpr int WALK_INTERVAL_MIN = 5000; // ms
+    static constexpr int POLL_INTERVAL = 50;       // ms (faster for smooth follow)
+    static constexpr int NEAR_DISTANCE = 200;      // px — enter HAPPY
+    static constexpr int LEAVE_DISTANCE = 250;     // px — leave HAPPY (hysteresis)
+    static constexpr int IDLE_SLEEP_SECS = 30;
+    static constexpr int WALK_INTERVAL_MIN = 5000;
     static constexpr int WALK_INTERVAL_MAX = 15000;
+    static constexpr int HAPPY_FOLLOW_SPEED = 6;   // px per poll toward mouse
 };
 
 #endif // BEHAVIORENGINE_H

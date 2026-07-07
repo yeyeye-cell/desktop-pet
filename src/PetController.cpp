@@ -51,9 +51,10 @@ void PetController::init()
     connect(m_behavior, &BehaviorEngine::stateChanged,
             m_animation, &AnimationEngine::setState);
 
-    // Behavior → Window (move)
+    // Behavior → Window (move) — also sync position back
     connect(m_behavior, &BehaviorEngine::moveRequested, this, [this](QPoint delta) {
         m_window->move(m_window->pos() + delta);
+        m_behavior->setPetPosition(m_window->pos());
     });
 
     // Window → Behavior
@@ -62,10 +63,14 @@ void PetController::init()
     connect(m_window, &PetWindow::dragged,
             m_behavior, &BehaviorEngine::onDragged);
 
-    // Also move window on drag
+    // Also move window on drag — and sync position
     connect(m_window, &PetWindow::dragged, this, [this](QPoint delta) {
         m_window->move(m_window->pos() + delta);
+        m_behavior->setPetPosition(m_window->pos());
     });
+
+    // Initial position sync
+    m_behavior->setPetPosition(m_window->pos());
 
     connect(m_window, &PetWindow::rightClicked,
             this, &PetController::onRightClicked);

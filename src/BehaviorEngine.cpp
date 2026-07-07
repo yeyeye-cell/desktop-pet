@@ -2,6 +2,7 @@
 #include <QCursor>
 #include <QScreen>
 #include <QGuiApplication>
+#include <cmath>
 #include <random>
 
 static int randomInt(int min, int max)
@@ -23,16 +24,13 @@ BehaviorEngine::BehaviorEngine(QObject *parent)
     connect(m_walkTimer, &QTimer::timeout, this, [this]() {
         if (m_currentState == PetState::Idle) {
             setState(PetState::Walking);
-            QPoint target = randomWalkTarget();
-            emit moveRequested(target);
-            // Walk ends after 1-2 seconds
+            emit moveRequested(randomWalkTarget());
             QTimer::singleShot(randomInt(1000, 2000), this, [this]() {
                 if (m_currentState == PetState::Walking) {
                     setState(PetState::Idle);
                 }
             });
         }
-        // Schedule next walk
         m_walkTimer->start(randomInt(WALK_INTERVAL_MIN, WALK_INTERVAL_MAX));
     });
 }
@@ -50,13 +48,17 @@ void BehaviorEngine::stop()
     m_walkTimer->stop();
 }
 
+void BehaviorEngine::setPetPosition(QPoint screenPos)
+{
+    m_petPosition = screenPos;
+}
+
 void BehaviorEngine::onClicked()
 {
     if (m_currentState == PetState::Sleeping) {
         setState(PetState::Idle);
     } else {
         setState(PetState::Clicked);
-        // Return to idle after 800ms
         QTimer::singleShot(800, this, [this]() {
             if (m_currentState == PetState::Clicked) {
                 setState(PetState::Idle);
@@ -65,9 +67,8 @@ void BehaviorEngine::onClicked()
     }
 }
 
-void BehaviorEngine::onDragged(QPoint delta)
+void BehaviorEngine::onDragged(QPoint)
 {
-    Q_UNUSED(delta);
     m_isDragging = true;
     setState(PetState::Dragged);
 }
@@ -82,31 +83,61 @@ void BehaviorEngine::onPoll()
 {
     if (m_isDragging) return;
 
-    QPoint mousePos = getMouseScreenPos();
-    bool wasNear = (m_lastMousePos - QCursor::pos()).manhattanLength() < NEAR_DISTANCE;
+    QPoint mousePos = QCursor::pos();
+    int distToMouse = (mousePos - m_petPosition).manhattanLength();
 
-    // Check mouse proximity
-    if (!wasNear) {
-        m_lastMousePos = mousePos;
+    // === HAPPY: mouse near → follow ===
+    if (distToMouse < NEAR_DISTANCE
+        && m_currentState != PetState::Clicked
+        && m_currentState != PetState::Dragged
+        && m_currentState != PetState::Sleeping)
+    {
+        if (m_currentState != PetState::Happy) {
+            setState(PetState::Happy);
+        }
+        // Move pet toward mouse (smooth step)
+        int dx = mousePos.x() - m_petPosition.x();
+        int dy = mousePos.y() - m_petPosition.y();
+        double len = std::sqrt(double(dx*dx + dy*dy));
+        if (len > 1.0) {
+            int stepX = int(dx / len * HAPPY_FOLLOW_SPEED);
+            int stepY = int(dy / len * HAPPY_FOLLOW_SPEED);
+            // Clamp to not overshoot
+            if (std::abs(stepX) > std::abs(dx)) stepX = dx;
+            if (std::abs(stepY) > std::abs(dy)) stepY = dy;
+            emit moveRequested(QPoint(stepX, stepY));
+        }
+        m_idleSeconds = 0;
+        return;
     }
-    m_idleSeconds++;
 
-    // Priority: Idle → Walking → Sleeping → Happy
+    // === Leave HAPPY when mouse moves away ===
+    if (m_currentState == PetState::Happy && distToMouse > LEAVE_DISTANCE) {
+        setState(PetState::Idle);
+        return;
+    }
+
+    // === SLEEPING: wake up ===
     if (m_currentState == PetState::Sleeping) {
-        // Wake up on mouse near
-        QPoint delta = mousePos - QCursor::pos();
-        if (delta.manhattanLength() < NEAR_DISTANCE) {
+        if (distToMouse < NEAR_DISTANCE) {
             setState(PetState::Idle);
             m_idleSeconds = 0;
         }
         return;
     }
 
-    // Idle timeout → sleep
+    // === CLICKED returning to idle ===
+    if (m_currentState == PetState::Clicked) {
+        return; // timer handles transition back to idle
+    }
+
+    // === WALKING — timer handles transitions ===
+
+    // === Idle timeout → sleep ===
+    m_idleSeconds++;
     if (m_idleSeconds >= IDLE_SLEEP_SECS * (1000 / POLL_INTERVAL)) {
         if (m_currentState == PetState::Idle || m_currentState == PetState::Walking) {
             setState(PetState::Sleeping);
-            return;
         }
     }
 }
@@ -122,12 +153,5 @@ void BehaviorEngine::setState(PetState state)
 
 QPoint BehaviorEngine::randomWalkTarget() const
 {
-    int dx = randomInt(-100, 100);
-    int dy = randomInt(-50, 50);
-    return QPoint(dx, dy);
-}
-
-QPoint BehaviorEngine::getMouseScreenPos() const
-{
-    return QCursor::pos();
+    return QPoint(randomInt(-100, 100), randomInt(-50, 50));
 }
