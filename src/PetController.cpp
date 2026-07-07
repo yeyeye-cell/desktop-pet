@@ -6,6 +6,7 @@
 #include "SettingsDialog.h"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QMenu>
 #include <QSettings>
 #include <QDebug>
@@ -28,7 +29,7 @@ void PetController::init()
 
     // 2. Create sprite manager and load presets
     m_spriteManager = new SpriteManager(this);
-    m_spriteManager->loadPresets("resources/presets");
+    m_spriteManager->loadPresets(QCoreApplication::applicationDirPath() + "/resources/presets");
 
     // 3. Create animation engine
     m_animation = new AnimationEngine(this);
