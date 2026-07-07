@@ -3,6 +3,9 @@
 
 #include <QObject>
 #include <QMenu>
+#include <QImageReader>
+#include <QDir>
+#include <QFileInfo>
 #include "SpriteData.h"
 
 class PetWindow;
@@ -33,6 +36,7 @@ private slots:
 private:
     void applyCurrentPet();
     void showContextMenu(QPoint globalPos);
+    static SpriteData buildCustomSprite(const QString paths[5]);
 
     PetWindow *m_window = nullptr;
     SpriteManager *m_spriteManager = nullptr;
@@ -41,6 +45,7 @@ private:
     SettingsDialog *m_settingsDialog = nullptr;
 
     QMenu *m_contextMenu = nullptr;
+    QString m_customImportPaths[5]; // persisted import paths
 };
 
 #endif // PETCONTROLLER_H

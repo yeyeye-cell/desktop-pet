@@ -137,18 +137,62 @@ static QPixmap scaleToFit(const QPixmap &src, int maxSize = 128)
     return scaled;
 }
 
-// Remove near-white background: pixels with R,G,B all > 240 → transparent
+// Remove background by flood-fill from edges.
+// Only pixels connected to the image border get removed — this preserves
+// white body parts that are enclosed within the character outline.
 static QPixmap removeWhiteBg(const QPixmap &src)
 {
     QImage img = src.toImage().convertToFormat(QImage::Format_ARGB32);
-    for (int y = 0; y < img.height(); ++y) {
-        for (int x = 0; x < img.width(); ++x) {
-            QColor c = img.pixelColor(x, y);
-            if (c.red() > 240 && c.green() > 240 && c.blue() > 240) {
+    int w = img.width(), h = img.height();
+
+    // Sample background color from the 4 corners (median)
+    QList<QColor> corners;
+    corners << img.pixelColor(0, 0) << img.pixelColor(w-1, 0)
+            << img.pixelColor(0, h-1) << img.pixelColor(w-1, h-1);
+    int bgR = 0, bgG = 0, bgB = 0;
+    for (auto &c : corners) { bgR += c.red(); bgG += c.green(); bgB += c.blue(); }
+    bgR /= 4; bgG /= 4; bgB /= 4;
+
+    // Flood-fill from edges: mark all edge-connected bg-colored pixels
+    QVector<QVector<bool>> visited(h, QVector<bool>(w, false));
+    struct Point { int x, y; };
+    QList<Point> queue;
+
+    // Seed queue with all edge pixels that match the background color
+    auto addIfBg = [&](int x, int y) {
+        if (x < 0 || x >= w || y < 0 || y >= h || visited[y][x]) return;
+        QColor c = img.pixelColor(x, y);
+        int dr = std::abs(c.red() - bgR);
+        int dg = std::abs(c.green() - bgG);
+        int db = std::abs(c.blue() - bgB);
+        if (dr < 40 && dg < 40 && db < 40) {
+            visited[y][x] = true;
+            queue.append({x, y});
+        }
+    };
+
+    // Seed from all 4 edges
+    for (int x = 0; x < w; ++x) { addIfBg(x, 0); addIfBg(x, h-1); }
+    for (int y = 0; y < h; ++y) { addIfBg(0, y); addIfBg(w-1, y); }
+
+    // BFS flood-fill
+    while (!queue.isEmpty()) {
+        Point p = queue.takeFirst();
+        addIfBg(p.x + 1, p.y);
+        addIfBg(p.x - 1, p.y);
+        addIfBg(p.x, p.y + 1);
+        addIfBg(p.x, p.y - 1);
+    }
+
+    // Make visited (background) pixels transparent
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            if (visited[y][x]) {
                 img.setPixelColor(x, y, Qt::transparent);
             }
         }
     }
+
     return QPixmap::fromImage(img);
 }
 
@@ -233,6 +277,35 @@ void SettingsDialog::onImportState(int stateIndex)
     m_importLabels[stateIndex]->setStyleSheet("color: #4caf50; font-size: 11px; font-weight: bold;");
 
     qDebug() << "Import state" << stateIndex << "(" << stateFolderName(stateIndex) << "):" << path;
+}
+
+void SettingsDialog::updateImportLabels()
+{
+    for (int i = 0; i < 5; ++i) {
+        if (m_importPaths[i].isEmpty()) {
+            m_importLabels[i]->setText(QStringLiteral("(未设置)"));
+            m_importLabels[i]->setStyleSheet("color: #888; font-size: 11px;");
+        } else {
+            QFileInfo fi(m_importPaths[i]);
+            m_importLabels[i]->setText(QStringLiteral("✔ ") + fi.fileName());
+            m_importLabels[i]->setStyleSheet("color: #4caf50; font-size: 11px; font-weight: bold;");
+        }
+    }
+}
+
+void SettingsDialog::setImportPaths(const QString paths[5])
+{
+    for (int i = 0; i < 5; ++i) {
+        m_importPaths[i] = paths[i];
+    }
+    updateImportLabels();
+}
+
+void SettingsDialog::getImportPaths(QString paths[5]) const
+{
+    for (int i = 0; i < 5; ++i) {
+        paths[i] = m_importPaths[i];
+    }
 }
 
 void SettingsDialog::onOk()

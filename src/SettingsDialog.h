@@ -19,9 +19,11 @@ public:
     int currentPetIndex() const;
     int scalePercent() const;
 
-    // Returns the newly built SpriteData from import selections,
-    // or empty if nothing was imported.
+    // Returns the newly built SpriteData from import selections
     SpriteData importedSprite() const;
+    // Persistence: get/set stored import paths
+    void setImportPaths(const QString paths[5]);
+    void getImportPaths(QString paths[5]) const;
 
 signals:
     void petChanged(int index);
