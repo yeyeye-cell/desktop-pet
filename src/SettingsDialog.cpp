@@ -43,6 +43,7 @@ void SettingsDialog::setupUi()
 
     // --- Preset selection ---
     auto *presetGroup = new QGroupBox(QStringLiteral("选择预设宠物"), this);
+    presetGroup->setObjectName(QStringLiteral("presetGroup"));
     auto *presetLayout = new QHBoxLayout(presetGroup);
     m_petGroup = new QButtonGroup(this);
     m_petGroup->setExclusive(true);
@@ -103,7 +104,7 @@ void SettingsDialog::setPets(const QVector<SpriteData> &pets, int currentIndex)
         delete btn;
     }
 
-    auto *presetGroup = findChild<QGroupBox*>(QStringLiteral("选择预设宠物"));
+    auto *presetGroup = findChild<QGroupBox*>(QStringLiteral("presetGroup"));
     if (!presetGroup) return;
     auto *presetLayout = presetGroup->layout();
 
@@ -130,9 +131,25 @@ int SettingsDialog::scalePercent() const
 
 static QPixmap scaleToFit(const QPixmap &src, int maxSize = 128)
 {
-    if (src.width() <= maxSize && src.height() <= maxSize)
-        return src;
-    return src.scaled(maxSize, maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QPixmap scaled = src;
+    if (src.width() > maxSize || src.height() > maxSize)
+        scaled = src.scaled(maxSize, maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    return scaled;
+}
+
+// Remove near-white background: pixels with R,G,B all > 240 → transparent
+static QPixmap removeWhiteBg(const QPixmap &src)
+{
+    QImage img = src.toImage().convertToFormat(QImage::Format_ARGB32);
+    for (int y = 0; y < img.height(); ++y) {
+        for (int x = 0; x < img.width(); ++x) {
+            QColor c = img.pixelColor(x, y);
+            if (c.red() > 240 && c.green() > 240 && c.blue() > 240) {
+                img.setPixelColor(x, y, Qt::transparent);
+            }
+        }
+    }
+    return QPixmap::fromImage(img);
 }
 
 SpriteData SettingsDialog::importedSprite() const
@@ -153,14 +170,14 @@ SpriteData SettingsDialog::importedSprite() const
                 while (true) {
                     QImage img = reader.read();
                     if (img.isNull()) break;
-                    frames.append(scaleToFit(QPixmap::fromImage(img)));
+                    frames.append(removeWhiteBg(scaleToFit(QPixmap::fromImage(img))));
                     if (!reader.jumpToNextImage()) break;
                 }
             } else {
                 for (int f = 0; f < count; ++f) {
                     reader.jumpToImage(f);
                     QImage img = reader.read();
-                    if (!img.isNull()) frames.append(scaleToFit(QPixmap::fromImage(img)));
+                    if (!img.isNull()) frames.append(removeWhiteBg(scaleToFit(QPixmap::fromImage(img))));
                 }
             }
         } else if (fi.isDir()) {
@@ -168,11 +185,11 @@ SpriteData SettingsDialog::importedSprite() const
             QStringList filters = {"*.png", "*.jpg", "*.jpeg", "*.bmp"};
             for (const auto &f : dir.entryList(filters, QDir::Files, QDir::Name)) {
                 QPixmap px(dir.absoluteFilePath(f));
-                if (!px.isNull()) frames.append(scaleToFit(px));
+                if (!px.isNull()) frames.append(removeWhiteBg(scaleToFit(px)));
             }
         } else {
             QPixmap px(m_importPaths[i]);
-            if (!px.isNull()) frames.append(scaleToFit(px));
+            if (!px.isNull()) frames.append(removeWhiteBg(scaleToFit(px)));
         }
 
         if (!frames.isEmpty()) {
