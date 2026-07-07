@@ -272,6 +272,7 @@ void SettingsDialog::onImportState(int stateIndex)
     if (path.isEmpty()) return;
 
     m_importPaths[stateIndex] = path;
+    m_importChanged = true;
     QFileInfo fi(path);
     m_importLabels[stateIndex]->setText(QStringLiteral("✔ ") + fi.fileName());
     m_importLabels[stateIndex]->setStyleSheet("color: #4caf50; font-size: 11px; font-weight: bold;");
@@ -312,10 +313,13 @@ void SettingsDialog::onOk()
 {
     m_scalePercent = m_scaleSlider ? m_scaleSlider->value() : 100;
 
-    // If user imported custom sprite, emit it
-    SpriteData imported = importedSprite();
-    if (!imported.isEmpty()) {
-        emit spriteImported(imported);
+    // Only emit imported sprite if user actually changed import paths
+    if (m_importChanged) {
+        SpriteData imported = importedSprite();
+        if (!imported.isEmpty()) {
+            emit spriteImported(imported);
+        }
+        m_importChanged = false;
     }
 
     int idx = currentPetIndex();

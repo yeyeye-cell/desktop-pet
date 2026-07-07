@@ -42,6 +42,7 @@ private:
     QSlider *m_scaleSlider = nullptr;
     QLabel *m_importLabels[5] = {};  // status label per state
     QString m_importPaths[5];         // selected file/folder per state
+    bool m_importChanged = false;     // true only when user actually picks a file
     int m_currentPetIndex = -1;
     int m_scalePercent = 100;
 
