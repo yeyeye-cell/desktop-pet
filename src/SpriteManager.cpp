@@ -170,6 +170,22 @@ bool SpriteManager::importCustom(const QString &path)
     return true;
 }
 
+void SpriteManager::addSprite(const SpriteData &data)
+{
+    // Replace existing custom pet, or append
+    for (int i = 0; i < m_pets.size(); ++i) {
+        if (m_pets[i].name == data.name) {
+            m_pets[i] = data;
+            m_currentIndex = i;
+            emit petListChanged();
+            return;
+        }
+    }
+    m_pets.append(data);
+    m_currentIndex = m_pets.size() - 1;
+    emit petListChanged();
+}
+
 bool SpriteManager::switchTo(const QString &name)
 {
     for (int i = 0; i < m_pets.size(); ++i) {

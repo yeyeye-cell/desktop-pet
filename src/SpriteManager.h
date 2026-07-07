@@ -13,6 +13,7 @@ public:
 
     void loadPresets(const QString &presetDir);
     bool importCustom(const QString &path);
+    void addSprite(const SpriteData &data);
     bool switchTo(const QString &name);
     bool switchTo(int index);
     const SpriteData *current() const;

@@ -140,8 +140,10 @@ void PetController::onPetSelected(int index)
 
 void PetController::onSpriteImported(SpriteData data)
 {
-    Q_UNUSED(data);
+    m_spriteManager->addSprite(data);
     applyCurrentPet();
+    qDebug() << "Custom sprite imported:" << data.name
+             << "with" << data.frames.size() << "states";
 }
 
 void PetController::onScaleChanged(qreal factor)

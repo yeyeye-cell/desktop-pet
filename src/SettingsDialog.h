@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QVector>
+#include <QLabel>
 #include "SpriteData.h"
 
 class QButtonGroup;
@@ -18,6 +19,10 @@ public:
     int currentPetIndex() const;
     int scalePercent() const;
 
+    // Returns the newly built SpriteData from import selections,
+    // or empty if nothing was imported.
+    SpriteData importedSprite() const;
+
 signals:
     void petChanged(int index);
     void spriteImported(SpriteData data);
@@ -26,16 +31,20 @@ signals:
 private slots:
     void onImportState(int stateIndex);
     void onOk();
-    void onCancel();
 
 private:
     void setupUi();
+    void updateImportLabels();
 
     QButtonGroup *m_petGroup = nullptr;
     QSlider *m_scaleSlider = nullptr;
-    QVector<SpriteData> m_importData;  // per-state mapping for import
+    QLabel *m_importLabels[5] = {};  // status label per state
+    QString m_importPaths[5];         // selected file/folder per state
     int m_currentPetIndex = -1;
     int m_scalePercent = 100;
+
+    static const char *stateFolderName(int s);
+    static PetState stateFromIndex(int i);
 };
 
 #endif // SETTINGSDIALOG_H
