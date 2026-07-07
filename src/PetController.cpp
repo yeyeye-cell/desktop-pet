@@ -63,9 +63,8 @@ void PetController::init()
     connect(m_window, &PetWindow::dragged,
             m_behavior, &BehaviorEngine::onDragged);
 
-    // Also move window on drag — and sync position
-    connect(m_window, &PetWindow::dragged, this, [this](QPoint delta) {
-        m_window->move(m_window->pos() + delta);
+    // Sync behavior position on drag (move already done by PetWindow)
+    connect(m_window, &PetWindow::dragged, this, [this](QPoint) {
         m_behavior->setPetPosition(m_window->pos());
     });
 
