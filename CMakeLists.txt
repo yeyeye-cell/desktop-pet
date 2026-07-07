@@ -54,6 +54,17 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     ${CMAKE_BINARY_DIR}/resources
 )
 
+# Copy MinGW runtime DLLs (windeployqt doesn't handle these)
+set(MINGW_BIN "D:/qtinstaal/Tools/mingw1310_64/bin")
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${MINGW_BIN}/libgcc_s_seh-1.dll ${CMAKE_BINARY_DIR}/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${MINGW_BIN}/libstdc++-6.dll ${CMAKE_BINARY_DIR}/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${MINGW_BIN}/libwinpthread-1.dll ${CMAKE_BINARY_DIR}/
+)
+
 # MinGW: no WIN32_EXECUTABLE so we can see console output during dev
 # Uncomment for release:
 # set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
