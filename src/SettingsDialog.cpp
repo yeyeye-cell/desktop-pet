@@ -128,6 +128,13 @@ int SettingsDialog::scalePercent() const
     return m_scaleSlider ? m_scaleSlider->value() : 100;
 }
 
+static QPixmap scaleToFit(const QPixmap &src, int maxSize = 128)
+{
+    if (src.width() <= maxSize && src.height() <= maxSize)
+        return src;
+    return src.scaled(maxSize, maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+
 SpriteData SettingsDialog::importedSprite() const
 {
     SpriteData data;
@@ -146,14 +153,14 @@ SpriteData SettingsDialog::importedSprite() const
                 while (true) {
                     QImage img = reader.read();
                     if (img.isNull()) break;
-                    frames.append(QPixmap::fromImage(img));
+                    frames.append(scaleToFit(QPixmap::fromImage(img)));
                     if (!reader.jumpToNextImage()) break;
                 }
             } else {
                 for (int f = 0; f < count; ++f) {
                     reader.jumpToImage(f);
                     QImage img = reader.read();
-                    if (!img.isNull()) frames.append(QPixmap::fromImage(img));
+                    if (!img.isNull()) frames.append(scaleToFit(QPixmap::fromImage(img)));
                 }
             }
         } else if (fi.isDir()) {
@@ -161,11 +168,11 @@ SpriteData SettingsDialog::importedSprite() const
             QStringList filters = {"*.png", "*.jpg", "*.jpeg", "*.bmp"};
             for (const auto &f : dir.entryList(filters, QDir::Files, QDir::Name)) {
                 QPixmap px(dir.absoluteFilePath(f));
-                if (!px.isNull()) frames.append(px);
+                if (!px.isNull()) frames.append(scaleToFit(px));
             }
         } else {
             QPixmap px(m_importPaths[i]);
-            if (!px.isNull()) frames.append(px);
+            if (!px.isNull()) frames.append(scaleToFit(px));
         }
 
         if (!frames.isEmpty()) {

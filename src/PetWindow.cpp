@@ -17,7 +17,7 @@ PetWindow::PetWindow(QWidget *parent)
     setAttribute(Qt::WA_TranslucentBackground, true);
     setAttribute(Qt::WA_NoSystemBackground, true);
     setAutoFillBackground(false);
-    setFixedSize(128, 128);
+    resize(128, 128);
 
     QBitmap mask(128, 128);
     mask.clear();
@@ -50,6 +50,11 @@ void PetWindow::setPetPixmap(const QPixmap &pixmap)
 {
     if (pixmap.isNull()) return;
     m_currentFrame = pixmap;
+
+    // Resize window to match pixmap
+    if (size() != pixmap.size()) {
+        resize(pixmap.size());
+    }
 
     // Fast: convert alpha channel to 1-bit mask → shapes window to pet outline
     QImage alphaImg = pixmap.toImage().convertToFormat(QImage::Format_Alpha8);
