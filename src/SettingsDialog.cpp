@@ -91,7 +91,7 @@ void SettingsDialog::setupUi()
     auto *okBtn = new QPushButton(QStringLiteral("确定"), this);
     auto *cancelBtn = new QPushButton(QStringLiteral("取消"), this);
     connect(okBtn, &QPushButton::clicked, this, &SettingsDialog::onOk);
-    connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    connect(cancelBtn, &QPushButton::clicked, this, &SettingsDialog::onCancel);
     btnLayout->addWidget(okBtn);
     btnLayout->addWidget(cancelBtn);
     mainLayout->addLayout(btnLayout);
@@ -127,6 +127,11 @@ int SettingsDialog::currentPetIndex() const
 int SettingsDialog::scalePercent() const
 {
     return m_scaleSlider ? m_scaleSlider->value() : 100;
+}
+
+void SettingsDialog::setScalePercent(int percent)
+{
+    if (m_scaleSlider) m_scaleSlider->setValue(qBound(20, percent, 200));
 }
 
 static QPixmap scaleToFit(const QPixmap &src, int maxSize = 128)
@@ -202,13 +207,13 @@ SpriteData SettingsDialog::importedSprite() const
     bool hasAny = false;
 
     for (int i = 0; i < 5; ++i) {
-        if (m_importPaths[i].isEmpty()) continue;
+        if (m_draftImportPaths[i].isEmpty()) continue;
 
-        QFileInfo fi(m_importPaths[i]);
+        QFileInfo fi(m_draftImportPaths[i]);
         QVector<QPixmap> frames;
 
         if (fi.suffix().toLower() == "gif") {
-            QImageReader reader(m_importPaths[i], "gif");
+            QImageReader reader(m_draftImportPaths[i], "gif");
             int count = reader.imageCount();
             if (count == 0) {
                 while (true) {
@@ -225,14 +230,14 @@ SpriteData SettingsDialog::importedSprite() const
                 }
             }
         } else if (fi.isDir()) {
-            QDir dir(m_importPaths[i]);
+            QDir dir(m_draftImportPaths[i]);
             QStringList filters = {"*.png", "*.jpg", "*.jpeg", "*.bmp"};
             for (const auto &f : dir.entryList(filters, QDir::Files, QDir::Name)) {
                 QPixmap px(dir.absoluteFilePath(f));
                 if (!px.isNull()) frames.append(removeWhiteBg(scaleToFit(px)));
             }
         } else {
-            QPixmap px(m_importPaths[i]);
+            QPixmap px(m_draftImportPaths[i]);
             if (!px.isNull()) frames.append(removeWhiteBg(scaleToFit(px)));
         }
 
@@ -271,7 +276,7 @@ void SettingsDialog::onImportState(int stateIndex)
     );
     if (path.isEmpty()) return;
 
-    m_importPaths[stateIndex] = path;
+    m_draftImportPaths[stateIndex] = path;
     m_importChanged = true;
     QFileInfo fi(path);
     m_importLabels[stateIndex]->setText(QStringLiteral("✔ ") + fi.fileName());
@@ -298,7 +303,9 @@ void SettingsDialog::setImportPaths(const QString paths[5])
 {
     for (int i = 0; i < 5; ++i) {
         m_importPaths[i] = paths[i];
+        m_draftImportPaths[i] = paths[i];
     }
+    m_importChanged = false;
     updateImportLabels();
 }
 
@@ -312,21 +319,36 @@ void SettingsDialog::getImportPaths(QString paths[5]) const
 void SettingsDialog::onOk()
 {
     m_scalePercent = m_scaleSlider ? m_scaleSlider->value() : 100;
+    const int selectedPet = currentPetIndex();
+    const bool importChanged = m_importChanged;
 
-    // Only emit imported sprite if user actually changed import paths
-    if (m_importChanged) {
+    if (importChanged) {
         SpriteData imported = importedSprite();
         if (!imported.isEmpty()) {
+            for (int i = 0; i < 5; ++i) m_importPaths[i] = m_draftImportPaths[i];
             emit spriteImported(imported);
         }
         m_importChanged = false;
     }
 
-    int idx = currentPetIndex();
-    if (idx >= 0) {
-        emit petChanged(idx);
+    // An explicit selection wins; importing alone selects the newly added pet.
+    if (selectedPet >= 0 && (!importChanged || selectedPet != m_currentPetIndex)) {
+        emit petChanged(selectedPet);
     }
 
     emit scaleChanged(m_scalePercent / 100.0);
     accept();
+}
+
+void SettingsDialog::onCancel()
+{
+    for (int i = 0; i < 5; ++i) m_draftImportPaths[i] = m_importPaths[i];
+    m_importChanged = false;
+    updateImportLabels();
+    QDialog::reject();
+}
+
+void SettingsDialog::reject()
+{
+    onCancel();
 }

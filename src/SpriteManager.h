@@ -16,6 +16,7 @@ public:
     void addSprite(const SpriteData &data);
     bool switchTo(const QString &name);
     bool switchTo(int index);
+    int currentIndex() const;
     const SpriteData *current() const;
     QVector<SpriteData> allPets() const;
 

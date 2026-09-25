@@ -13,6 +13,8 @@ class SpriteManager;
 class AnimationEngine;
 class BehaviorEngine;
 class SettingsDialog;
+class QSystemTrayIcon;
+class QAction;
 
 class PetController : public QObject {
     Q_OBJECT
@@ -31,6 +33,8 @@ private slots:
     void onSpriteImported(SpriteData data);
     void onScaleChanged(qreal factor);
     void onHide();
+    void onToggleVisibility();
+    void onShowPet();
     void onQuit();
 
 private:
@@ -45,7 +49,10 @@ private:
     SettingsDialog *m_settingsDialog = nullptr;
 
     QMenu *m_contextMenu = nullptr;
+    QSystemTrayIcon *m_trayIcon = nullptr;
+    QAction *m_hideAction = nullptr;
     QString m_customImportPaths[5]; // persisted import paths
+    int m_scalePercent = 100;
 };
 
 #endif // PETCONTROLLER_H

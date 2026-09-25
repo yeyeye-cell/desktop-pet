@@ -11,6 +11,9 @@
 #include <QSettings>
 #include <QFileInfo>
 #include <QDebug>
+#include <QSystemTrayIcon>
+#include <QStyle>
+#include <QAction>
 
 PetController::PetController(QObject *parent)
     : QObject(parent)
@@ -35,7 +38,7 @@ void PetController::init()
     // 3. Load saved state
     QSettings s("DesktopPet", "DesktopPet");
     QString lastPet = s.value("currentPet").toString();
-    int lastScale = s.value("scale", 100).toInt();
+    m_scalePercent = qBound(20, s.value("scale", 100).toInt(), 200);
 
     // Restore custom pet import paths
     for (int i = 0; i < 5; ++i) {
@@ -73,10 +76,9 @@ void PetController::init()
     // 6. Create settings dialog
     m_settingsDialog = new SettingsDialog;
     m_settingsDialog->setPets(m_spriteManager->allPets(),
-                              m_spriteManager->current() ? 0 : -1);
-    if (!m_customImportPaths[0].isEmpty()) {
-        m_settingsDialog->setImportPaths(m_customImportPaths);
-    }
+                              m_spriteManager->currentIndex());
+    m_settingsDialog->setScalePercent(m_scalePercent);
+    m_settingsDialog->setImportPaths(m_customImportPaths);
 
     // 7. Wire signals
     // Animation → Window
@@ -98,6 +100,8 @@ void PetController::init()
             m_behavior, &BehaviorEngine::onClicked);
     connect(m_window, &PetWindow::dragged,
             m_behavior, &BehaviorEngine::onDragged);
+    connect(m_window, &PetWindow::dragReleased,
+            m_behavior, &BehaviorEngine::onDragReleased);
 
     // Sync behavior position on drag (move already done by PetWindow)
     connect(m_window, &PetWindow::dragged, this, [this](QPoint) {
@@ -122,13 +126,36 @@ void PetController::init()
     m_contextMenu = new QMenu;
     auto *switchMenu = m_contextMenu->addMenu(QStringLiteral("切换宠物"));
     auto *settingsAction = m_contextMenu->addAction(QStringLiteral("宠物设置..."));
-    auto *hideAction = m_contextMenu->addAction(QStringLiteral("隐藏"));
+    m_hideAction = m_contextMenu->addAction(QStringLiteral("隐藏"));
     m_contextMenu->addSeparator();
     auto *quitAction = m_contextMenu->addAction(QStringLiteral("退出"));
 
     connect(settingsAction, &QAction::triggered, this, &PetController::onSettingsTriggered);
-    connect(hideAction, &QAction::triggered, this, &PetController::onHide);
+    connect(m_hideAction, &QAction::triggered, this, &PetController::onHide);
     connect(quitAction, &QAction::triggered, this, &PetController::onQuit);
+
+    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+        m_trayIcon = new QSystemTrayIcon(this);
+        m_trayIcon->setIcon(QApplication::style()->standardIcon(QStyle::SP_ComputerIcon));
+        m_trayIcon->setToolTip(QStringLiteral("DesktopPet"));
+        auto *trayMenu = new QMenu(m_settingsDialog);
+        auto *toggleAction = trayMenu->addAction(QStringLiteral("隐藏宠物"));
+        auto *traySettingsAction = trayMenu->addAction(QStringLiteral("宠物设置..."));
+        trayMenu->addSeparator();
+        auto *trayQuitAction = trayMenu->addAction(QStringLiteral("退出"));
+        connect(toggleAction, &QAction::triggered, this, &PetController::onToggleVisibility);
+        connect(traySettingsAction, &QAction::triggered, this, &PetController::onSettingsTriggered);
+        connect(trayQuitAction, &QAction::triggered, this, &PetController::onQuit);
+        connect(m_trayIcon, &QSystemTrayIcon::activated, this,
+                [this](QSystemTrayIcon::ActivationReason reason) {
+                    if (reason == QSystemTrayIcon::Trigger
+                        || reason == QSystemTrayIcon::DoubleClick) onShowPet();
+                });
+        m_trayIcon->setContextMenu(trayMenu);
+        m_trayIcon->show();
+    } else {
+        m_hideAction->setEnabled(false);
+    }
 
     qDebug() << "PetController initialized. Current pet:"
              << (m_spriteManager->current() ? m_spriteManager->current()->name : "(none)");
@@ -137,10 +164,10 @@ void PetController::init()
 void PetController::shutdown()
 {
     QSettings s("DesktopPet", "DesktopPet");
-    if (m_spriteManager->current()) {
+    if (m_spriteManager && m_spriteManager->current()) {
         s.setValue("currentPet", m_spriteManager->current()->name);
     }
-    s.setValue("scale", m_settingsDialog->scalePercent());
+    s.setValue("scale", m_scalePercent);
 
     // Save custom import paths
     for (int i = 0; i < 5; ++i) {
@@ -290,7 +317,8 @@ void PetController::showContextMenu(QPoint globalPos)
 void PetController::onSettingsTriggered()
 {
     m_settingsDialog->setPets(m_spriteManager->allPets(),
-                              m_spriteManager->current() ? 0 : -1);
+                              m_spriteManager->currentIndex());
+    m_settingsDialog->setScalePercent(m_scalePercent);
     if (m_settingsDialog->exec() == QDialog::Accepted) {
         onScaleChanged(m_settingsDialog->scalePercent() / 100.0);
     }
@@ -318,19 +346,40 @@ void PetController::onSpriteImported(SpriteData data)
 
 void PetController::onScaleChanged(qreal factor)
 {
-    m_window->resize(int(128 * factor), int(128 * factor));
-    // Re-apply current frame at new scale
-    applyCurrentPet();
+    m_scalePercent = qBound(20, qRound(factor * 100.0), 200);
+    m_window->setScaleFactor(m_scalePercent / 100.0);
 }
 
 void PetController::onHide()
 {
     m_window->hide();
+    if (m_trayIcon && m_trayIcon->contextMenu()) {
+        m_trayIcon->contextMenu()->actions().first()->setText(QStringLiteral("显示宠物"));
+    }
+}
+
+void PetController::onToggleVisibility()
+{
+    if (m_window->isVisible()) m_window->hide();
+    else onShowPet();
+    if (m_trayIcon && m_trayIcon->contextMenu()) {
+        auto *action = m_trayIcon->contextMenu()->actions().first();
+        action->setText(m_window->isVisible() ? QStringLiteral("隐藏宠物")
+                                              : QStringLiteral("显示宠物"));
+    }
+}
+
+void PetController::onShowPet()
+{
+    m_window->show();
+    m_window->raise();
+    if (m_trayIcon && m_trayIcon->contextMenu()) {
+        m_trayIcon->contextMenu()->actions().first()->setText(QStringLiteral("隐藏宠物"));
+    }
 }
 
 void PetController::onQuit()
 {
-    shutdown();
     qApp->quit();
 }
 
@@ -338,6 +387,15 @@ void PetController::applyCurrentPet()
 {
     const SpriteData *data = m_spriteManager->current();
     if (data) {
+        QSize logicalSize(1, 1);
+        for (auto it = data->frames.cbegin(); it != data->frames.cend(); ++it) {
+            for (const QPixmap &frame : it.value()) {
+                logicalSize.setWidth(qMax(logicalSize.width(), frame.width()));
+                logicalSize.setHeight(qMax(logicalSize.height(), frame.height()));
+            }
+        }
+        m_window->setLogicalSize(logicalSize);
+        m_window->setScaleFactor(m_scalePercent / 100.0);
         m_animation->setSpriteData(data);
     }
 }

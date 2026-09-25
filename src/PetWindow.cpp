@@ -75,7 +75,23 @@ void PetWindow::setPetPixmap(const QPixmap &pixmap)
 {
     if (pixmap.isNull()) return;
     m_currentFrame = pixmap;
-    if (size() != pixmap.size()) resize(pixmap.size());
+    update();
+}
+
+void PetWindow::setLogicalSize(const QSize &size)
+{
+    if (size.isEmpty()) return;
+    m_logicalSize = size;
+    resize(qRound(m_logicalSize.width() * m_scaleFactor),
+           qRound(m_logicalSize.height() * m_scaleFactor));
+    update();
+}
+
+void PetWindow::setScaleFactor(qreal factor)
+{
+    m_scaleFactor = qBound<qreal>(0.2, factor, 2.0);
+    resize(qRound(m_logicalSize.width() * m_scaleFactor),
+           qRound(m_logicalSize.height() * m_scaleFactor));
     update();
 }
 
@@ -87,7 +103,12 @@ void PetWindow::paintEvent(QPaintEvent *)
     painter.fillRect(rect(), Qt::transparent);
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     if (!m_currentFrame.isNull()) {
-        painter.drawPixmap(0, 0, m_currentFrame);
+        const QSize frameSize(qRound(m_currentFrame.width() * m_scaleFactor),
+                              qRound(m_currentFrame.height() * m_scaleFactor));
+        const QRect target(QPoint((width() - frameSize.width()) / 2,
+                                  (height() - frameSize.height()) / 2), frameSize);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, m_scaleFactor != 1.0);
+        painter.drawPixmap(target, m_currentFrame);
     }
 }
 
@@ -129,7 +150,10 @@ void PetWindow::mouseMoveEvent(QMouseEvent *event)
 
 void PetWindow::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton && !m_isDragging) emit clicked();
+    if (event->button() == Qt::LeftButton) {
+        if (m_isDragging) emit dragReleased();
+        else emit clicked();
+    }
     m_isDragging = false;
 }
 

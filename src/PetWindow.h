@@ -10,10 +10,13 @@ class PetWindow : public QWidget {
 public:
     explicit PetWindow(QWidget *parent = nullptr);
     void setPetPixmap(const QPixmap &pixmap);
+    void setLogicalSize(const QSize &size);
+    void setScaleFactor(qreal factor);
 
 signals:
     void clicked();
     void dragged(QPoint delta);
+    void dragReleased();
     void rightClicked(QPoint pos);
     void mouseNear(bool isNear);
 
@@ -28,6 +31,8 @@ protected:
 
 private:
     QPixmap m_currentFrame;
+    QSize m_logicalSize = QSize(128, 128);
+    qreal m_scaleFactor = 1.0;
     QPoint m_dragStartPos;
     bool m_isDragging = false;
 };

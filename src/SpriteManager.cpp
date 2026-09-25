@@ -204,6 +204,11 @@ bool SpriteManager::switchTo(int index)
     return true;
 }
 
+int SpriteManager::currentIndex() const
+{
+    return m_currentIndex;
+}
+
 const SpriteData *SpriteManager::current() const
 {
     if (m_currentIndex < 0 || m_currentIndex >= m_pets.size()) return nullptr;
