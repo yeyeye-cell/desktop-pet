@@ -4,8 +4,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
-#include <QImageReader>
-#include <QMovie>
 #include <QDebug>
 
 SpriteManager::SpriteManager(QObject *parent)
@@ -21,9 +19,12 @@ void SpriteManager::loadPresets(const QString &presetDir)
         return;
     }
 
-    const auto entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const auto &entry : entries) {
-        SpriteData data = loadFromDirectory(entry.absoluteFilePath());
+    const QStringList builtInPets = {"bird", "cat", "dog"};
+    for (const QString &petName : builtInPets) {
+        const QString petPath = dir.filePath(petName);
+        if (!QFileInfo(petPath).isDir()) continue;
+
+        SpriteData data = loadFromDirectory(petPath);
         if (!data.isEmpty()) {
             m_pets.append(data);
         }
@@ -87,103 +88,6 @@ QVector<QPixmap> SpriteManager::loadFrameSequence(const QString &folderPath)
         }
     }
     return frames;
-}
-
-SpriteData SpriteManager::loadFromGif(const QString &filePath)
-{
-    SpriteData data;
-    QFileInfo fi(filePath);
-
-    // Try QImageReader first (synchronous, works for most GIFs)
-    QImageReader reader(filePath, "gif");
-    if (!reader.canRead()) {
-        qWarning() << "Cannot read GIF:" << filePath;
-        return data;
-    }
-
-    data.name = fi.baseName();
-    data.frameRate = reader.nextImageDelay(); // ms delay of first frame, default 100
-
-    // Extract all frames
-    int frameCount = reader.imageCount();
-    if (frameCount == 0) {
-        // Some GIFs report 0; read until no more images
-        while (true) {
-            QImage img = reader.read();
-            if (img.isNull()) break;
-            data.frames[PetState::Idle].append(QPixmap::fromImage(img));
-            if (!reader.jumpToNextImage()) break;
-        }
-    } else {
-        for (int i = 0; i < frameCount; ++i) {
-            reader.jumpToImage(i);
-            QImage img = reader.read();
-            if (!img.isNull()) {
-                data.frames[PetState::Idle].append(QPixmap::fromImage(img));
-            }
-        }
-    }
-
-    if (data.frames[PetState::Idle].isEmpty()) {
-        qWarning() << "No frames extracted from GIF:" << filePath;
-        return SpriteData();
-    }
-
-    qDebug() << "Loaded" << data.frames[PetState::Idle].size()
-             << "frames from GIF:" << filePath;
-    return data;
-}
-
-bool SpriteManager::importCustom(const QString &path)
-{
-    QFileInfo fi(path);
-    SpriteData data;
-
-    if (fi.isDir()) {
-        data = loadFromDirectory(path);
-    } else if (fi.suffix().toLower() == "gif") {
-        data = loadFromGif(path);
-    } else {
-        // Treat single file as idle frame
-        QPixmap pix(path);
-        if (pix.isNull()) return false;
-        data.name = fi.baseName();
-        data.frames[PetState::Idle] = {pix};
-    }
-
-    if (data.isEmpty()) return false;
-
-    // Copy fallback frames: any unset state uses idle
-    auto idleIt = data.frames.find(PetState::Idle);
-    if (idleIt != data.frames.end()) {
-        for (int s = 0; s <= static_cast<int>(PetState::Sleeping); ++s) {
-            PetState st = static_cast<PetState>(s);
-            if (!data.frames.contains(st) || data.frames[st].isEmpty()) {
-                data.frames[st] = idleIt.value();
-            }
-        }
-    }
-
-    m_pets.append(data);
-    if (m_currentIndex < 0) m_currentIndex = 0;
-    emit petListChanged();
-    return true;
-}
-
-void SpriteManager::addSprite(const SpriteData &data)
-{
-    // Replace existing custom pet, or append
-    for (int i = 0; i < m_pets.size(); ++i) {
-        if (m_pets[i].name == data.name) {
-            m_pets[i] = data;
-            m_currentIndex = i;
-            emit petListChanged();
-            return;
-        }
-    }
-    m_pets.append(data);
-    m_currentIndex = m_pets.size() - 1;
-    emit petListChanged();
 }
 
 bool SpriteManager::switchTo(const QString &name)

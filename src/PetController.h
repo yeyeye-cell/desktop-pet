@@ -3,9 +3,6 @@
 
 #include <QObject>
 #include <QMenu>
-#include <QImageReader>
-#include <QDir>
-#include <QFileInfo>
 #include "SpriteData.h"
 
 class PetWindow;
@@ -30,7 +27,6 @@ private slots:
     void onRightClicked(QPoint globalPos);
     void onSettingsTriggered();
     void onPetSelected(int index);
-    void onSpriteImported(SpriteData data);
     void onScaleChanged(qreal factor);
     void onHide();
     void onToggleVisibility();
@@ -40,7 +36,6 @@ private slots:
 private:
     void applyCurrentPet();
     void showContextMenu(QPoint globalPos);
-    static SpriteData buildCustomSprite(const QString paths[5]);
 
     PetWindow *m_window = nullptr;
     SpriteManager *m_spriteManager = nullptr;
@@ -51,7 +46,6 @@ private:
     QMenu *m_contextMenu = nullptr;
     QSystemTrayIcon *m_trayIcon = nullptr;
     QAction *m_hideAction = nullptr;
-    QString m_customImportPaths[5]; // persisted import paths
     int m_scalePercent = 100;
 };
 

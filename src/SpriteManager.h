@@ -12,8 +12,6 @@ public:
     explicit SpriteManager(QObject *parent = nullptr);
 
     void loadPresets(const QString &presetDir);
-    bool importCustom(const QString &path);
-    void addSprite(const SpriteData &data);
     bool switchTo(const QString &name);
     bool switchTo(int index);
     int currentIndex() const;
@@ -25,7 +23,6 @@ signals:
 
 private:
     SpriteData loadFromDirectory(const QString &dirPath);
-    SpriteData loadFromGif(const QString &filePath);
     QVector<QPixmap> loadFrameSequence(const QString &folderPath);
 
     QVector<SpriteData> m_pets;

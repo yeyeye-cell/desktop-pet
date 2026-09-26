@@ -9,7 +9,6 @@
 #include <QCoreApplication>
 #include <QMenu>
 #include <QSettings>
-#include <QFileInfo>
 #include <QDebug>
 #include <QSystemTrayIcon>
 #include <QStyle>
@@ -39,26 +38,7 @@ void PetController::init()
     QSettings s("DesktopPet", "DesktopPet");
     QString lastPet = s.value("currentPet").toString();
     m_scalePercent = qBound(20, s.value("scale", 100).toInt(), 200);
-
-    // Restore custom pet import paths
-    for (int i = 0; i < 5; ++i) {
-        m_customImportPaths[i] = s.value(QString("customPath_%1").arg(i)).toString();
-    }
-
-    // Re-import custom pet if paths exist
-    bool hasCustom = false;
-    for (int i = 0; i < 5; ++i) {
-        if (!m_customImportPaths[i].isEmpty() && QFileInfo::exists(m_customImportPaths[i])) {
-            hasCustom = true;
-            break;
-        }
-    }
-    if (hasCustom) {
-        auto data = buildCustomSprite(m_customImportPaths);
-        if (!data.isEmpty()) {
-            m_spriteManager->addSprite(data);
-        }
-    }
+    for (int i = 0; i < 5; ++i) s.remove(QString("customPath_%1").arg(i));
 
     // Switch to last pet (or first preset)
     if (!lastPet.isEmpty()) {
@@ -78,7 +58,6 @@ void PetController::init()
     m_settingsDialog->setPets(m_spriteManager->allPets(),
                               m_spriteManager->currentIndex());
     m_settingsDialog->setScalePercent(m_scalePercent);
-    m_settingsDialog->setImportPaths(m_customImportPaths);
 
     // 7. Wire signals
     // Animation → Window
@@ -114,8 +93,6 @@ void PetController::init()
     // Settings dialog
     connect(m_settingsDialog, &SettingsDialog::petChanged,
             this, &PetController::onPetSelected);
-    connect(m_settingsDialog, &SettingsDialog::spriteImported,
-            this, &PetController::onSpriteImported);
     connect(m_settingsDialog, &SettingsDialog::scaleChanged,
             this, &PetController::onScaleChanged);
 
@@ -170,129 +147,6 @@ void PetController::shutdown()
     }
     s.setValue("scale", m_scalePercent);
 
-    // Save custom import paths
-    for (int i = 0; i < 5; ++i) {
-        s.setValue(QString("customPath_%1").arg(i), m_customImportPaths[i]);
-    }
-}
-
-static QPixmap scaleToFit(const QPixmap &src, int maxSize = 128)
-{
-    if (src.width() <= maxSize && src.height() <= maxSize)
-        return src;
-    return src.scaled(maxSize, maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-}
-
-static QPixmap removeWhiteBg(const QPixmap &src)
-{
-    QImage img = src.toImage().convertToFormat(QImage::Format_ARGB32);
-    int w = img.width(), h = img.height();
-
-    QList<QColor> corners;
-    corners << img.pixelColor(0, 0) << img.pixelColor(w-1, 0)
-            << img.pixelColor(0, h-1) << img.pixelColor(w-1, h-1);
-    int bgR = 0, bgG = 0, bgB = 0;
-    for (auto &c : corners) { bgR += c.red(); bgG += c.green(); bgB += c.blue(); }
-    bgR /= 4; bgG /= 4; bgB /= 4;
-
-    QVector<QVector<bool>> visited(h, QVector<bool>(w, false));
-    struct Point { int x, y; };
-    QList<Point> queue;
-
-    auto addIfBg = [&](int x, int y) {
-        if (x < 0 || x >= w || y < 0 || y >= h || visited[y][x]) return;
-        QColor c = img.pixelColor(x, y);
-        if (std::abs(c.red()-bgR) < 40 && std::abs(c.green()-bgG) < 40 && std::abs(c.blue()-bgB) < 40) {
-            visited[y][x] = true;
-            queue.append({x, y});
-        }
-    };
-
-    for (int x = 0; x < w; ++x) { addIfBg(x, 0); addIfBg(x, h-1); }
-    for (int y = 0; y < h; ++y) { addIfBg(0, y); addIfBg(w-1, y); }
-
-    while (!queue.isEmpty()) {
-        Point p = queue.takeFirst();
-        addIfBg(p.x+1, p.y); addIfBg(p.x-1, p.y);
-        addIfBg(p.x, p.y+1); addIfBg(p.x, p.y-1);
-    }
-
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x)
-            if (visited[y][x]) img.setPixelColor(x, y, Qt::transparent);
-
-    return QPixmap::fromImage(img);
-}
-
-SpriteData PetController::buildCustomSprite(const QString paths[5])
-{
-    // Reuse the same logic as SettingsDialog::importedSprite()
-    // Build SpriteData from file paths
-    SpriteData data;
-    bool hasAny = false;
-
-    static const PetState states[] = {
-        PetState::Idle, PetState::Walking, PetState::Clicked,
-        PetState::Happy, PetState::Sleeping
-    };
-
-    for (int i = 0; i < 5; ++i) {
-        if (paths[i].isEmpty()) continue;
-        QFileInfo fi(paths[i]);
-        if (!fi.exists()) continue;
-        QVector<QPixmap> frames;
-
-        if (fi.suffix().toLower() == "gif") {
-            QImageReader reader(paths[i], "gif");
-            int count = reader.imageCount();
-            if (count == 0) {
-                while (true) {
-                    QImage img = reader.read();
-                    if (img.isNull()) break;
-                    frames.append(removeWhiteBg(scaleToFit(QPixmap::fromImage(img))));
-                    if (!reader.jumpToNextImage()) break;
-                }
-            } else {
-                for (int f = 0; f < count; ++f) {
-                    reader.jumpToImage(f);
-                    QImage img = reader.read();
-                    if (!img.isNull()) frames.append(removeWhiteBg(scaleToFit(QPixmap::fromImage(img))));
-                }
-            }
-        } else if (fi.isDir()) {
-            QDir dir(paths[i]);
-            QStringList filters = {"*.png", "*.jpg", "*.jpeg", "*.bmp"};
-            for (const auto &f : dir.entryList(filters, QDir::Files, QDir::Name)) {
-                QPixmap px(dir.absoluteFilePath(f));
-                if (!px.isNull()) frames.append(removeWhiteBg(scaleToFit(px)));
-            }
-        } else {
-            QPixmap px(paths[i]);
-            if (!px.isNull()) frames.append(removeWhiteBg(scaleToFit(px)));
-        }
-
-        if (!frames.isEmpty()) {
-            data.frames[states[i]] = frames;
-            hasAny = true;
-        }
-    }
-
-    if (!hasAny) return {};
-
-    data.name = QStringLiteral("自定义宠物");
-    data.frameRate = 100;
-
-    auto idleIt = data.frames.find(PetState::Idle);
-    if (idleIt != data.frames.end()) {
-        for (int s = 0; s < 5; ++s) {
-            PetState st = states[s];
-            if (!data.frames.contains(st) || data.frames[st].isEmpty()) {
-                data.frames[st] = idleIt.value();
-            }
-        }
-    }
-
-    return data;
 }
 
 void PetController::onRightClicked(QPoint globalPos)
@@ -330,19 +184,6 @@ void PetController::onPetSelected(int index)
     if (m_spriteManager->switchTo(index)) {
         applyCurrentPet();
     }
-}
-
-void PetController::onSpriteImported(SpriteData data)
-{
-    m_spriteManager->addSprite(data);
-
-    // Save import paths
-    m_settingsDialog->getImportPaths(m_customImportPaths);
-    // Scale and white-bg-remove imported frames
-    applyCurrentPet();
-
-    qDebug() << "Custom sprite imported:" << data.name
-             << "with" << data.frames.size() << "states";
 }
 
 void PetController::onScaleChanged(qreal factor)
