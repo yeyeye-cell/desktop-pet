@@ -123,7 +123,8 @@ void PetController::init()
     m_behavior->setPetPosition(m_window->pos());
 
     // Build context menu
-    m_contextMenu = new QMenu;
+    m_contextMenu = new QMenu(m_window);
+    m_contextMenu->setWindowFlag(Qt::WindowStaysOnTopHint, true);
     auto *switchMenu = m_contextMenu->addMenu(QStringLiteral("切换宠物"));
     auto *settingsAction = m_contextMenu->addAction(QStringLiteral("宠物设置..."));
     m_hideAction = m_contextMenu->addAction(QStringLiteral("隐藏"));

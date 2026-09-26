@@ -160,4 +160,5 @@ void PetWindow::mouseReleaseEvent(QMouseEvent *event)
 void PetWindow::contextMenuEvent(QContextMenuEvent *event)
 {
     emit rightClicked(event->globalPos());
+    event->accept();
 }
